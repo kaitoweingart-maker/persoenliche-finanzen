@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>Persönliche Finanzen</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo">₣</div>
+      <h1>Persönliche Finanzen</h1>
+      <p class="login-sub" id="loginSub">Bitte sechsstelligen Zahlencode eingeben</p>
+    </div>
+    <form id="pinForm" autocomplete="off">
+      <div class="pin-row" id="pinRow">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="0">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="1">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="2">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="3">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="4">
+        <input type="password" inputmode="numeric" maxlength="1" pattern="[0-9]" autocomplete="off" data-i="5">
+      </div>
+      <div class="login-msg" id="loginMsg"></div>
+      <button type="submit" class="btn primary" id="loginSubmit">Anmelden</button>
+    </form>
+    <div class="login-foot">
+      <button class="link-btn" id="forgotBtn" type="button">PIN vergessen? Backup wiederherstellen</button>
+    </div>
+  </div>
+  <div class="login-disclaimer">
+    Daten liegen verschlüsselt (AES-GCM, Schlüssel aus PIN via PBKDF2) im Browser-Speicher.
+    Kein Server – Daten verlassen dieses Gerät nicht. <strong>Backup regelmässig herunterladen.</strong>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="appShell" class="app-shell hidden">
+  <header>
+    <div class="brand">
+      <h1>Persönliche Finanzen</h1>
+      <span class="version">MVP v1.0</span>
+    </div>
+    <nav id="mainNav">
+      <button data-view="dashboard" class="nav-btn active">Dashboard</button>
+      <button data-view="kv" class="nav-btn">Kurzfristig</button>
+      <button data-view="lv" class="nav-btn">Langfristig</button>
+      <button data-view="einkuenfte" class="nav-btn">Einkünfte</button>
+      <button data-view="ausgaben" class="nav-btn">Ausgaben</button>
+      <button data-view="investments" class="nav-btn">Investments</button>
+      <button data-view="aktienplaene" class="nav-btn">Aktienpläne</button>
+    </nav>
+    <div class="header-actions">
+      <input type="search" id="globalSearch" placeholder="Suche (Strg+K)…">
+      <button id="dataMenuBtn" title="Daten / Einstellungen">⋯</button>
+      <button id="lockBtn" title="Sperren">🔒</button>
+    </div>
+  </header>
+
+  <main id="app"></main>
+
+  <dialog id="modal">
+    <div id="modalContent"></div>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
