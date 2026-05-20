@@ -503,6 +503,9 @@ dialog::backdrop { background: rgba(10,10,10,0.35); backdrop-filter: blur(2px); 
   transition: border-color .12s;
 }
 .pin-row input:focus { border-color: var(--primary); }
+@media (pointer: coarse) {
+  .pin-row input { caret-color: transparent; }
+}
 .pin-row.shake { animation: shake .4s; }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
