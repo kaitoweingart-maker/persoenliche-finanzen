@@ -4,7 +4,7 @@
  * ============================================================ */
 
 /* ===== Stammdaten ===== */
-const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP'];
+const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP', 'HKD', 'JPY'];
 const KV_KATEGORIEN = ['Kreditkarte', 'Konsumkredit', 'Rechnung', 'Privatdarlehen', 'Steuern', 'Sonstiges'];
 const LV_KATEGORIEN = ['Hypothek', 'Konsumkredit', 'Leasing', 'Studiendarlehen', 'Sonstiges'];
 const LV_ZINSTYPEN = ['Fest', 'Variabel', 'SARON'];
@@ -577,47 +577,20 @@ async function loadDemoData() {
   const inMonths = n => { const d = new Date(today); d.setMonth(d.getMonth() + n); return iso(d); };
 
   await Store.save('kv', [
-    { id: Store.nextId('KV'), bezeichnung: 'Kreditkarte Visa', kategorie: 'Kreditkarte', glaeubiger: 'UBS', ursprung: 4200, saldo: 1850, currency: 'CHF', zins: 12.9, faellig: inDays(12), mindestrate: 150, status: 'Offen', notizen: '', payments: [] },
-    { id: Store.nextId('KV'), bezeichnung: 'Steuern 2025 (Rate 2)', kategorie: 'Steuern', glaeubiger: 'Steueramt ZH', ursprung: 3200, saldo: 3200, currency: 'CHF', zins: 0, faellig: inDays(45), status: 'Offen', notizen: '', payments: [] },
-    { id: Store.nextId('KV'), bezeichnung: 'Zahnarzt Rechnung', kategorie: 'Rechnung', glaeubiger: 'Praxis Dr. Müller', ursprung: 480, saldo: 480, currency: 'CHF', zins: 0, faellig: inDays(5), status: 'Offen', notizen: '', payments: [] },
+    { id: Store.nextId('KV'), bezeichnung: 'Kreditkarte', kategorie: 'Kreditkarte', glaeubiger: '', ursprung: 9900, saldo: 9900, currency: 'CHF', zins: 0, faellig: inDays(30), mindestrate: null, status: 'Offen', notizen: '', payments: [] },
+    { id: Store.nextId('KV'), bezeichnung: 'Privatkredit', kategorie: 'Privatdarlehen', glaeubiger: '', ursprung: 18984, saldo: 18984, currency: 'CHF', zins: 10.6, faellig: inDays(365), mindestrate: null, status: 'Offen', notizen: '10.6 % Zins', payments: [] },
+    { id: Store.nextId('KV'), bezeichnung: 'Steuern', kategorie: 'Steuern', glaeubiger: 'Steueramt', ursprung: 5318.05, saldo: 5318.05, currency: 'CHF', zins: 0, faellig: inDays(60), mindestrate: null, status: 'Offen', notizen: '', payments: [] },
   ]);
-  await Store.save('lv', [
-    { id: Store.nextId('LV'), bezeichnung: 'Hypothek Wohnung Zürich', kategorie: 'Hypothek', glaeubiger: 'ZKB', ursprung: 650000, saldo: 580000, currency: 'CHF', zins: 1.85, zinstyp: 'SARON', vertragsbeginn: '2022-04-01', vertragsende: '2027-04-01', tilgungsrate: 1000, sicherheiten: 'Grundpfand', status: 'Aktiv', notizen: '', sondertilgungen: [] },
-    { id: Store.nextId('LV'), bezeichnung: 'Auto-Leasing Tesla', kategorie: 'Leasing', glaeubiger: 'AMAG Leasing', ursprung: 45000, saldo: 28500, currency: 'CHF', zins: 3.9, zinstyp: 'Fest', vertragsbeginn: '2023-09-01', vertragsende: '2027-09-01', tilgungsrate: 580, status: 'Aktiv', notizen: '', sondertilgungen: [] },
-  ]);
-  await Store.save('einkuenfte', [
-    { id: Store.nextId('E'), bezeichnung: 'Lohn Amanthos AG', kategorie: 'Lohn', quelle: 'Amanthos AG', netto: 6850, brutto: 8200, frequenz: 'Monatlich', empfangstag: 25, currency: 'CHF', start: '2024-04-01', konto: 'UBS Lohnkonto', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('E'), bezeichnung: 'Mieteinnahme Stockwerk EFH', kategorie: 'Mieteinnahme', quelle: 'Privat', netto: 1800, frequenz: 'Monatlich', empfangstag: 1, currency: 'CHF', start: '2023-01-01', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('E'), bezeichnung: 'Bonus 2025', kategorie: 'Bonus', quelle: 'Amanthos AG', netto: 8000, brutto: 11000, frequenz: 'Jährlich', empfangstag: 31, currency: 'CHF', start: '2026-03-31', status: 'Aktiv', notizen: '' },
-  ]);
-  await Store.save('ausgaben', [
-    { id: Store.nextId('A'), bezeichnung: 'Miete Wohnung', kategorie: 'Wohnen', empfaenger: 'Privat-Vermieter', betrag: 2100, frequenz: 'Monatlich', faelligtag: 1, methode: 'Dauerauftrag', currency: 'CHF', start: '2023-04-01', fixvar: 'Fix', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('A'), bezeichnung: 'Krankenkasse Helsana', kategorie: 'Versicherung', empfaenger: 'Helsana', betrag: 385, frequenz: 'Monatlich', faelligtag: 1, methode: 'LSV', currency: 'CHF', start: '2024-01-01', fixvar: 'Fix', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('A'), bezeichnung: 'Netflix', kategorie: 'Abo', empfaenger: 'Netflix', betrag: 22, frequenz: 'Monatlich', faelligtag: 15, methode: 'Kreditkarte', currency: 'CHF', start: '2022-01-01', fixvar: 'Variabel', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('A'), bezeichnung: 'Lebenshaltung Coop/Migros', kategorie: 'Lebenshaltung', empfaenger: 'Diverse', betrag: 900, frequenz: 'Monatlich', methode: 'Kreditkarte', currency: 'CHF', start: '2023-01-01', fixvar: 'Variabel', status: 'Aktiv', notizen: '' },
-    { id: Store.nextId('A'), bezeichnung: 'GA Travelcard', kategorie: 'Mobilität', empfaenger: 'SBB', betrag: 4080, frequenz: 'Jährlich', methode: 'Manuell', currency: 'CHF', start: '2025-08-01', fixvar: 'Fix', status: 'Aktiv', notizen: '' },
-  ]);
+  await Store.save('lv', []);
+  await Store.save('einkuenfte', []);
+  await Store.save('ausgaben', []);
   await Store.save('investments', [
-    { id: Store.nextId('I'), bezeichnung: 'MSCI World ETF', kategorie: 'ETF', ticker: 'IE00B4L5Y983', broker: 'Swissquote', anzahl: 120, kaufpreis: 78.40, investTotal: 9408, kurs: 102.30, currency: 'CHF', kaufdatum: '2023-05-15', dividende: 1.6, risiko: 'Mittel', status: 'Im Portfolio', notizen: '', transactions: [] },
-    { id: Store.nextId('I'), bezeichnung: 'Bitcoin', kategorie: 'Krypto', ticker: 'BTC', broker: 'Bitcoin Suisse', anzahl: 0.35, kaufpreis: 38500, investTotal: 13475, kurs: 64000, currency: 'CHF', kaufdatum: '2023-08-10', risiko: 'Hoch', status: 'Im Portfolio', notizen: '', transactions: [] },
-    { id: Store.nextId('I'), bezeichnung: 'Säule 3a VIAC Global 100', kategorie: 'Säule 3a', broker: 'VIAC', anzahl: 1, kaufpreis: 28000, investTotal: 28000, kurs: 31200, currency: 'CHF', kaufdatum: '2020-01-01', risiko: 'Mittel', status: 'Im Portfolio', notizen: '', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Vanguard FTSE All-World UCITS ETF', kategorie: 'ETF', ticker: 'VWRL.AS', broker: '', anzahl: 20, kaufpreis: 136.94, investTotal: 2738.80, kurs: 154.78, aktuellerWert: 3094.18, currency: 'EUR', kaufdatum: '2024-01-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt; Quelle: Yahoo Finance App', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Alibaba Group Holding', kategorie: 'Aktie', ticker: '9988.HK', broker: '', anzahl: 100, kaufpreis: 123.68, investTotal: 12368, kurs: 131.90, aktuellerWert: 13188.39, currency: 'HKD', kaufdatum: '2024-06-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt; Quelle: Yahoo Finance App', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Mizuho Financial Group', kategorie: 'Aktie', ticker: '8411.T', broker: '', anzahl: 100, kaufpreis: 2486.31, investTotal: 248631, kurs: 6982.00, aktuellerWert: 697444.14, currency: 'JPY', kaufdatum: '2021-01-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt aus +180 % Gewinn; Quelle: Yahoo Finance App', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Rakuten Group', kategorie: 'Aktie', ticker: '4755.T', broker: '', anzahl: 1200, kaufpreis: 800.05, investTotal: 960060, kurs: 784.00, aktuellerWert: 940563.81, currency: 'JPY', kaufdatum: '2024-01-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt; Quelle: Yahoo Finance App', transactions: [] },
   ]);
-  await Store.save('aktienplaene', [
-    {
-      id: Store.nextId('AP'), bezeichnung: 'RSU Grant 2024 – TechCorp', plantyp: 'RSU',
-      arbeitgeber: 'TechCorp AG', ticker: 'TECH', grantDate: '2024-04-01',
-      gesamtanzahl: 400, strikePrice: 0, kurs: 85, currency: 'CHF',
-      vestingStart: '2024-04-01', vestingJahre: 4, cliff: 1, rhythmus: 'Quartal',
-      sperrfrist: null, status: 'Aktiv', notizen: '', events: []
-    },
-    {
-      id: Store.nextId('AP'), bezeichnung: 'ESPP Q1/2026', plantyp: 'ESPP',
-      arbeitgeber: 'TechCorp AG', ticker: 'TECH', grantDate: '2026-01-01',
-      gesamtanzahl: 35, strikePrice: 72.25, kurs: 85, currency: 'CHF',
-      vestingStart: '2026-01-01', vestingJahre: 0, cliff: 0, rhythmus: 'Jährlich',
-      sperrfrist: '2026-07-01', status: 'Aktiv', notizen: 'Kauf 15 % Rabatt', events: []
-    },
-  ]);
+  await Store.save('aktienplaene', []);
 }
 
 /* ===== Rendering / Routing ===== */
