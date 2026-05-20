@@ -116,10 +116,15 @@ const Auth = {
     const a = this.attempts() + 1;
     localStorage.setItem(this.STORAGE_KEYS.attempts, String(a));
     if (a >= this.MAX_ATTEMPTS) {
-      localStorage.setItem(this.STORAGE_KEYS.lockUntil, String(Date.now() + this.LOCK_MS));
-      localStorage.setItem(this.STORAGE_KEYS.attempts, '0');
+      this.detonate();
     }
     return a;
+  },
+
+  detonate() {
+    Store.clearAll();
+    try { sessionStorage.setItem('fin_detonated', '1'); } catch (_) {}
+    setTimeout(() => location.reload(), 50);
   },
   resetFails() {
     localStorage.removeItem(this.STORAGE_KEYS.attempts);
@@ -339,18 +344,33 @@ function openModal(content) {
 }
 function closeModal() { $('#modal').close(); }
 
+/* ===== Bootstrap ===== */
+function ensureBootstrapped() {
+  if (Auth.isSetup()) return true;
+  const b = window.__PIN_BOOTSTRAP__;
+  if (!b || !b.salt || !b.magic) return false;
+  localStorage.setItem(Auth.STORAGE_KEYS.salt, JSON.stringify(b.salt));
+  localStorage.setItem(Auth.STORAGE_KEYS.magic, b.magic);
+  return true;
+}
+
 /* ===== Login Flow ===== */
 function showLogin() {
   $('#appShell').classList.add('hidden');
   $('#loginScreen').classList.remove('hidden');
   const sub = $('#loginSub');
-  if (!Auth.isSetup()) {
-    sub.textContent = 'Ersteinrichtung: Wählen Sie einen sechsstelligen Zahlencode';
-    $('#loginSubmit').textContent = 'PIN festlegen';
+  const detonated = (() => { try { return sessionStorage.getItem('fin_detonated') === '1'; } catch (_) { return false; } })();
+  if (detonated) {
+    sub.textContent = 'Datenbank wurde nach zu vielen Fehlversuchen gelöscht.';
+    try { sessionStorage.removeItem('fin_detonated'); } catch (_) {}
+  } else if (!Auth.isSetup()) {
+    sub.textContent = 'Nicht initialisiert — bootstrap-pin.js im Terminal ausführen.';
+    $('#loginSubmit').disabled = true;
+    return;
   } else {
     sub.textContent = 'Bitte sechsstelligen Zahlencode eingeben';
-    $('#loginSubmit').textContent = 'Anmelden';
   }
+  $('#loginSubmit').textContent = 'Anmelden';
   refreshLockState();
   clearPinInputs();
   setTimeout(() => $('.pin-row input[data-i="0"]')?.focus(), 50);
@@ -367,17 +387,8 @@ function readPinInputs() {
 }
 
 function refreshLockState() {
-  if (Auth.isLocked()) {
-    const mins = Math.ceil(Auth.remainingLockMs() / 60000);
-    $('#loginMsg').textContent = `Zugang gesperrt – bitte ${mins} Min. warten.`;
-    $('#loginMsg').className = 'login-msg';
-    $('#loginSubmit').disabled = true;
-    $$('.pin-row input').forEach(i => i.disabled = true);
-    setTimeout(refreshLockState, 30000);
-  } else {
-    $('#loginSubmit').disabled = false;
-    $$('.pin-row input').forEach(i => i.disabled = false);
-  }
+  $('#loginSubmit').disabled = false;
+  $$('.pin-row input').forEach(i => i.disabled = false);
 }
 
 function setupPinHandlers() {
@@ -415,36 +426,18 @@ function setupPinHandlers() {
       $('#loginMsg').textContent = 'Bitte 6 Ziffern eingeben.';
       return;
     }
-    if (!Auth.isSetup()) {
-      // First time setup
-      if (!confirm('Diesen PIN als neuen Zugangscode festlegen?\n\nWICHTIG: Bei Verlust des PIN sind die Daten unwiderruflich verloren. Bitte regelmässig Backup herunterladen.')) {
-        return;
-      }
-      await Auth.setupPin(pin);
-      // Initialize empty stores
-      for (const name of ['kv', 'lv', 'einkuenfte', 'ausgaben', 'investments', 'aktienplaene']) {
-        await Store.save(name, []);
-      }
-      await Store.save('counters', {});
-      await Store.save('settings', { autoLock: 15, currency: 'CHF', concentrationLimit: 30, demoOffered: false });
-      showToast('PIN festgelegt – willkommen!');
+    if (!Auth.isSetup()) { $('#loginMsg').textContent = 'Nicht initialisiert.'; return; }
+    const ok = await Auth.verifyPin(pin);
+    if (ok) {
       await unlockAndShow();
     } else {
-      const ok = await Auth.verifyPin(pin);
-      if (ok) {
-        await unlockAndShow();
-      } else {
-        if (Auth.isLocked()) {
-          refreshLockState();
-        } else {
-          const tries = Auth.MAX_ATTEMPTS - Auth.attempts();
-          $('#loginMsg').textContent = `Falscher Code – noch ${tries} Versuch${tries === 1 ? '' : 'e'}.`;
-          $('#pinRow').classList.add('shake');
-          setTimeout(() => $('#pinRow').classList.remove('shake'), 500);
-          clearPinInputs();
-          $('.pin-row input[data-i="0"]').focus();
-        }
-      }
+      const tries = Auth.MAX_ATTEMPTS - Auth.attempts();
+      if (tries <= 0) return;
+      $('#loginMsg').textContent = `Falscher Code – noch ${tries} Versuch${tries === 1 ? '' : 'e'}. Nach 0 wird die Datenbank gelöscht.`;
+      $('#pinRow').classList.add('shake');
+      setTimeout(() => $('#pinRow').classList.remove('shake'), 500);
+      clearPinInputs();
+      $('.pin-row input[data-i="0"]').focus();
     }
   });
 
@@ -1946,5 +1939,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPinHandlers();
   installShellHandlers();
   installIdleHandlers();
+  ensureBootstrapped();
   showLogin();
 });
