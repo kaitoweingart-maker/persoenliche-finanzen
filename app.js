@@ -391,7 +391,42 @@ function refreshLockState() {
   $$('.pin-row input').forEach(i => i.disabled = false);
 }
 
+function keypadInsertDigit(d) {
+  const inputs = $$('.pin-row input');
+  for (let i = 0; i < inputs.length; i++) {
+    if (!inputs[i].value) {
+      inputs[i].value = d;
+      const next = inputs[i + 1];
+      if (next) next.focus(); else inputs[i].blur();
+      if (i === inputs.length - 1) $('#pinForm').requestSubmit();
+      return;
+    }
+  }
+}
+function keypadBackspace() {
+  const inputs = $$('.pin-row input');
+  for (let i = inputs.length - 1; i >= 0; i--) {
+    if (inputs[i].value) {
+      inputs[i].value = '';
+      inputs[i].focus();
+      return;
+    }
+  }
+}
+function setupKeypadHandlers() {
+  const pad = $('#pinKeypad');
+  if (!pad) return;
+  pad.addEventListener('click', e => {
+    const btn = e.target.closest('button.key');
+    if (!btn) return;
+    if (btn.dataset.digit) keypadInsertDigit(btn.dataset.digit);
+    else if (btn.dataset.action === 'backspace') keypadBackspace();
+    else if (btn.dataset.action === 'submit') $('#pinForm').requestSubmit();
+  });
+}
+
 function setupPinHandlers() {
+  setupKeypadHandlers();
   const inputs = $$('.pin-row input');
   inputs.forEach((inp, idx) => {
     inp.addEventListener('input', e => {
