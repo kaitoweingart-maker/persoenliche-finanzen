@@ -33,6 +33,62 @@ const STATUS_COLORS = {
   'Vollständig gevestet': 'blue', 'Verfallen': 'red',
 };
 
+/* ===== FX Rates (frankfurter.app, ECB-basiert) ===== */
+const FX = {
+  STORAGE_KEY: 'fin_fx_rates',
+  TTL_MS: 6 * 60 * 60 * 1000, // 6h
+  rates: { CHF: 1, EUR: 1.04, USD: 0.91, GBP: 0.85, HKD: 8.45, JPY: 175.50 }, // Fallback
+  date: '—',
+  source: 'fallback',
+
+  loadFromStorage() {
+    try {
+      const obj = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || 'null');
+      if (obj && obj.rates && obj.rates.CHF) {
+        this.rates = obj.rates;
+        this.date = obj.date;
+        this.source = 'cache';
+        return obj.ts || 0;
+      }
+    } catch (_) {}
+    return 0;
+  },
+
+  async fetchLive() {
+    try {
+      const r = await fetch('https://api.frankfurter.app/latest?from=CHF');
+      if (!r.ok) throw new Error('FX API ' + r.status);
+      const data = await r.json();
+      this.rates = { CHF: 1, ...data.rates };
+      this.date = data.date;
+      this.source = 'live';
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ rates: this.rates, date: data.date, ts: Date.now() }));
+      return true;
+    } catch (e) {
+      console.warn('FX fetch failed:', e.message);
+      return false;
+    }
+  },
+
+  init() {
+    const ts = this.loadFromStorage();
+    const stale = !ts || (Date.now() - ts > this.TTL_MS);
+    if (stale) {
+      this.fetchLive().then(ok => {
+        if (ok && App && !App.locked && App.currentView === 'dashboard') render();
+      });
+    }
+  },
+
+  toCHF(value, currency) {
+    if (value === null || value === undefined) return 0;
+    if (!currency || currency === 'CHF') return value;
+    const rate = this.rates[currency];
+    if (!rate || rate === 0) return value;
+    return value / rate;
+  },
+};
+
 /* ===== Crypto layer (Web Crypto API) ===== */
 const Crypto = {
   enc: new TextEncoder(),
@@ -538,6 +594,7 @@ async function unlockAndShow() {
   $('#loginScreen').classList.add('hidden');
   $('#appShell').classList.remove('hidden');
   resetIdleTimer();
+  FX.init();
   // Offer demo data on first unlock if completely empty
   const allEmpty = ['kv', 'lv', 'einkuenfte', 'ausgaben', 'investments', 'aktienplaene']
     .every(k => (Store.get(k) || []).length === 0);
@@ -589,6 +646,10 @@ async function loadDemoData() {
     { id: Store.nextId('I'), bezeichnung: 'Alibaba Group Holding', kategorie: 'Aktie', ticker: '9988.HK', broker: '', anzahl: 100, kaufpreis: 123.68, investTotal: 12368, kurs: 131.90, aktuellerWert: 13188.39, currency: 'HKD', kaufdatum: '2024-06-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt; Quelle: Yahoo Finance App', transactions: [] },
     { id: Store.nextId('I'), bezeichnung: 'Mizuho Financial Group', kategorie: 'Aktie', ticker: '8411.T', broker: '', anzahl: 100, kaufpreis: 2486.31, investTotal: 248631, kurs: 6982.00, aktuellerWert: 697444.14, currency: 'JPY', kaufdatum: '2021-01-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt aus +180 % Gewinn; Quelle: Yahoo Finance App', transactions: [] },
     { id: Store.nextId('I'), bezeichnung: 'Rakuten Group', kategorie: 'Aktie', ticker: '4755.T', broker: '', anzahl: 1200, kaufpreis: 800.05, investTotal: 960060, kurs: 784.00, aktuellerWert: 940563.81, currency: 'JPY', kaufdatum: '2024-01-01', dividende: null, status: 'Im Portfolio', notizen: 'Kaufdatum geschätzt; Quelle: Yahoo Finance App', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Darlehen Amanthos Hotel AG', kategorie: 'Anleihe', ticker: '', broker: '', anzahl: null, kaufpreis: null, investTotal: 50000, kurs: null, aktuellerWert: 50000, currency: 'CHF', kaufdatum: '2024-01-01', dividende: 3.5, status: 'Im Portfolio', notizen: 'Aktionärsdarlehen, 3.5 % Zins p.a.', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Darlehen Amanthos Living AG', kategorie: 'Anleihe', ticker: '', broker: '', anzahl: null, kaufpreis: null, investTotal: 50000, kurs: null, aktuellerWert: 50000, currency: 'CHF', kaufdatum: '2024-01-01', dividende: 3.5, status: 'Im Portfolio', notizen: 'Aktionärsdarlehen, 3.5 % Zins p.a.', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Beteiligung Amanthos Hotel AG (2.5 %)', kategorie: 'Aktie', ticker: '', broker: '', anzahl: null, kaufpreis: null, investTotal: 50000, kurs: null, aktuellerWert: 50000, currency: 'CHF', kaufdatum: '2024-01-01', dividende: null, status: 'Im Portfolio', notizen: '2.5 % Anteil an Amanthos Hotel AG', transactions: [] },
+    { id: Store.nextId('I'), bezeichnung: 'Beteiligung Amanthos Living AG (2.5 %)', kategorie: 'Aktie', ticker: '', broker: '', anzahl: null, kaufpreis: null, investTotal: 50000, kurs: null, aktuellerWert: 50000, currency: 'CHF', kaufdatum: '2024-01-01', dividende: null, status: 'Im Portfolio', notizen: '2.5 % Anteil an Amanthos Living AG', transactions: [] },
   ]);
   await Store.save('aktienplaene', []);
 }
@@ -631,6 +692,34 @@ VIEWS.dashboard = function (root) {
     kpi('Gevestete Aktien', chf(kpis.vestedWert), `${num(kpis.vestedAnzahl, 0)} Stück (gevestet)`),
     kpi('Mtl. Einkünfte', chf(kpis.einkuenfteMonat), 'inkl. anteiliger Boni'),
   ));
+
+  // FX-Status (zeigt verwendete Umrechnungskurse)
+  const usedCurrencies = new Set();
+  (Store.get('investments') || []).forEach(i => { if (i.currency && i.currency !== 'CHF') usedCurrencies.add(i.currency); });
+  if (usedCurrencies.size > 0) {
+    const srcLabel = FX.source === 'live' ? 'Live (ECB)' : FX.source === 'cache' ? 'Cache' : 'Fallback';
+    const srcCls = FX.source === 'live' ? 'tag green' : FX.source === 'cache' ? 'tag blue' : 'tag yellow';
+    const ratesRow = el('div', { className: 'fx-rates' });
+    [...usedCurrencies].sort().forEach(c => {
+      const rate = FX.rates[c];
+      if (rate) ratesRow.appendChild(el('span', { className: 'fx-pair' },
+        el('span', { className: 'mono' }, `1 ${c}`),
+        el('span', { className: 'muted' }, ' = '),
+        el('span', { className: 'mono' }, num(1 / rate, 4)),
+        el('span', { className: 'muted' }, ' CHF')
+      ));
+    });
+    root.appendChild(el('div', { className: 'card fx-card' },
+      el('div', { className: 'fx-head' },
+        el('span', { className: 'fx-title' }, 'Live-CHF-Umrechnung'),
+        el('span', { className: srcCls }, srcLabel),
+        el('span', { className: 'small muted' }, `Stand ${FX.date}`),
+        el('button', { className: 'btn small', onClick: async () => { await FX.fetchLive(); render(); } }, '↻ Aktualisieren')
+      ),
+      ratesRow,
+      el('div', { className: 'small muted mt-1' }, 'Quelle: frankfurter.app (Europäische Zentralbank). Alle Investments-KPIs werden für die Anzeige in CHF umgerechnet.')
+    ));
+  }
 
   // Pivoting-Vorschläge für ausgeglichenes Portfolio
   const sugs = computeSuggestions(kpis);
@@ -1158,7 +1247,7 @@ VIEWS.investments = function (root) {
   const data = Store.get('investments');
   const aktiv = data.filter(x => x.status === 'Im Portfolio');
   const totalWert = aktiv.reduce((s, x) => s + currentInvWert(x), 0);
-  const totalInvested = aktiv.reduce((s, x) => s + (x.investTotal || 0), 0);
+  const totalInvested = aktiv.reduce((s, x) => s + investedCHF(x), 0);
   const gewinn = totalWert - totalInvested;
   const perfPct = totalInvested > 0 ? gewinn / totalInvested * 100 : 0;
 
@@ -1201,9 +1290,12 @@ VIEWS.investments = function (root) {
       el('td', {}, el('span', { className: 'tag blue' }, x.kategorie)),
       el('td', {}, x.broker || '–'),
       el('td', { className: 'num' }, x.anzahl ? num(x.anzahl, 4) : '–'),
-      el('td', { className: 'num' }, x.kaufpreis ? num(x.kaufpreis, 2) : '–'),
-      el('td', { className: 'num' }, x.kurs ? num(x.kurs, 2) : '–'),
-      el('td', { className: 'num' }, chf(wert)),
+      el('td', { className: 'num' }, x.kaufpreis ? `${x.currency || 'CHF'} ${num(x.kaufpreis, 2)}` : '–'),
+      el('td', { className: 'num' }, x.kurs ? `${x.currency || 'CHF'} ${num(x.kurs, 2)}` : '–'),
+      el('td', { className: 'num' },
+        el('div', {}, chf(wert)),
+        x.currency && x.currency !== 'CHF' ? el('div', { className: 'small muted' }, `${x.currency} ${num(currentInvWertNative(x), 2)}`) : null
+      ),
       el('td', { className: 'num ' + (gv >= 0 ? '' : '') }, el('span', { className: gv >= 0 ? 'tag green' : 'tag red' }, `${chf(gv, { sign: true })} (${pct(gvPct, 1)})`)),
       el('td', {}, statusTag(x.status))
     ));
@@ -1216,11 +1308,17 @@ VIEWS.investments = function (root) {
   }
 };
 
-function currentInvWert(x) {
+function currentInvWertNative(x) {
   if (!x) return 0;
   if (x.kurs && x.anzahl) return x.kurs * x.anzahl;
   if (x.aktuellerWert) return x.aktuellerWert;
   return x.investTotal || 0;
+}
+function currentInvWert(x) {
+  return FX.toCHF(currentInvWertNative(x), x?.currency || 'CHF');
+}
+function investedCHF(x) {
+  return FX.toCHF(x?.investTotal || 0, x?.currency || 'CHF');
 }
 
 function openInvForm(id) {
@@ -1652,7 +1750,7 @@ function computeKPIs() {
 
   const invActive = inv.filter(x => x.status === 'Im Portfolio');
   const investWert = invActive.reduce((s, x) => s + currentInvWert(x), 0);
-  const investGekauft = invActive.reduce((s, x) => s + (x.investTotal || 0), 0);
+  const investGekauft = invActive.reduce((s, x) => s + investedCHF(x), 0);
   const investGewinn = investWert - investGekauft;
 
   const vestedWert = computePlanTotalVested();
