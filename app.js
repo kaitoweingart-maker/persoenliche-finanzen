@@ -14,7 +14,6 @@ const FREQUENZ = ['Monatlich', 'Quartal', 'Halbjährlich', 'Jährlich', 'Einmali
 const FREQUENZ_FAKTOR = { Monatlich: 1, Quartal: 1 / 3, Halbjährlich: 1 / 6, Jährlich: 1 / 12, Einmalig: 0 };
 const ZAHLUNGSMETHODEN = ['Dauerauftrag', 'LSV', 'Kreditkarte', 'Manuell'];
 const INV_KATEGORIEN = ['Aktie', 'Fonds', 'ETF', 'Anleihe', 'Krypto', 'Säule 3a', 'Vorsorge', 'Cash', 'Sonstiges'];
-const RISIKO = ['Niedrig', 'Mittel', 'Hoch'];
 const PLAN_TYPEN = ['RSU', 'PSU', 'Option', 'ESPP', 'Restricted Shares', 'Sonstiges'];
 const VESTING_RHYTHMUS = ['Monatlich', 'Quartal', 'Jährlich'];
 
@@ -1223,30 +1222,39 @@ VIEWS.investments = function (root) {
 function currentInvWert(x) {
   if (!x) return 0;
   if (x.kurs && x.anzahl) return x.kurs * x.anzahl;
+  if (x.aktuellerWert) return x.aktuellerWert;
   return x.investTotal || 0;
 }
 
 function openInvForm(id) {
   const list = Store.get('investments');
   const rec = id ? list.find(x => x.id === id) : { id: null, currency: 'CHF', status: 'Im Portfolio', transactions: [] };
+  const hasAdv = !!(rec.ticker || rec.broker || rec.anzahl || rec.kaufpreis || rec.kurs || rec.dividende || (rec.currency && rec.currency !== 'CHF') || (rec.status && rec.status !== 'Im Portfolio'));
+  const advDetails = el('details', { className: 'adv-fields' });
+  if (hasAdv) advDetails.setAttribute('open', '');
+  advDetails.appendChild(el('summary', {}, 'Erweiterte Felder (Broker, Stückzahl, Kurs, Dividende, Status, Währung)'));
+  advDetails.appendChild(formGrid([
+    ['ticker', 'Ticker / ISIN', 'text', false, rec.ticker],
+    ['broker', 'Broker / Depot', 'text', false, rec.broker],
+    ['anzahl', 'Anzahl / Stück', 'number', false, rec.anzahl, null, 0.0001],
+    ['kaufpreis', 'Kaufpreis pro Einheit', 'number', false, rec.kaufpreis, null, 0.01],
+    ['kurs', 'Aktueller Kurs pro Einheit', 'number', false, rec.kurs, null, 0.01],
+    ['dividende', 'Dividenden-Rendite p.a. (%)', 'number', false, rec.dividende, null, 0.01],
+    ['currency', 'Währung', 'select', false, rec.currency || 'CHF', CURRENCIES],
+    ['status', 'Status', 'select', false, rec.status || 'Im Portfolio', INV_STATUS],
+  ]));
+
   const form = el('form', { className: 'crud-form' },
     el('h3', {}, id ? `Bearbeiten: ${rec.id}` : 'Neues Investment'),
     formGrid([
-      ['bezeichnung', 'Bezeichnung *', 'text', true, rec.bezeichnung],
+      ['bezeichnung', 'Was hast du gekauft? *', 'text', true, rec.bezeichnung],
       ['kategorie', 'Kategorie *', 'select', true, rec.kategorie || 'ETF', INV_KATEGORIEN],
-      ['ticker', 'Ticker / ISIN', 'text', false, rec.ticker],
-      ['broker', 'Broker / Depot', 'text', false, rec.broker],
-      ['anzahl', 'Anzahl / Stück', 'number', false, rec.anzahl, null, 0.0001],
-      ['kaufpreis', 'Kaufpreis pro Einheit', 'number', false, rec.kaufpreis, null, 0.01],
-      ['investTotal', 'Investierter Betrag (Total) *', 'number', true, rec.investTotal],
-      ['kurs', 'Aktueller Kurs', 'number', false, rec.kurs, null, 0.01],
-      ['currency', 'Währung *', 'select', true, rec.currency || 'CHF', CURRENCIES],
+      ['investTotal', 'Investiert (CHF) *', 'number', true, rec.investTotal],
+      ['aktuellerWert', 'Aktueller Wert (CHF)', 'number', false, rec.aktuellerWert],
       ['kaufdatum', 'Kaufdatum *', 'date', true, rec.kaufdatum],
-      ['dividende', 'Dividenden-Rendite p.a. (%)', 'number', false, rec.dividende, null, 0.01],
-      ['risiko', 'Risikoklasse', 'select', false, rec.risiko, RISIKO],
-      ['status', 'Status *', 'select', true, rec.status || 'Im Portfolio', INV_STATUS],
       ['notizen', 'Notizen', 'textarea', false, rec.notizen, null, null, true],
     ]),
+    advDetails,
     rec.id ? investmentPerfCard(rec) : null,
     paymentsSection(rec, 'transactions', 'Transaktionen', ['type', 'date', 'qty', 'price', 'note']),
     crudActions(rec, async (data) => {
@@ -1436,7 +1444,7 @@ function crudActions(rec, onSave, view) {
       const form = e.target.closest('form');
       const data = Object.fromEntries(new FormData(form).entries());
       // Coerce numbers
-      ['ursprung', 'saldo', 'zins', 'mindestrate', 'tilgungsrate', 'netto', 'brutto', 'empfangstag', 'betrag', 'faelligtag', 'anzahl', 'kaufpreis', 'investTotal', 'kurs', 'dividende', 'gesamtanzahl', 'strikePrice', 'vestingJahre', 'cliff'].forEach(k => {
+      ['ursprung', 'saldo', 'zins', 'mindestrate', 'tilgungsrate', 'netto', 'brutto', 'empfangstag', 'betrag', 'faelligtag', 'anzahl', 'kaufpreis', 'investTotal', 'kurs', 'aktuellerWert', 'dividende', 'gesamtanzahl', 'strikePrice', 'vestingJahre', 'cliff'].forEach(k => {
         if (data[k] !== undefined && data[k] !== '') data[k] = parseFloat(data[k]);
         else if (data[k] === '') delete data[k];
       });
