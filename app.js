@@ -653,9 +653,22 @@ VIEWS.dashboard = function (root) {
 
   root.appendChild(el('div', { className: 'kpi-grid' },
     kpi('Aktive Verbindlichkeiten', chf(kpis.schuldenTotal), `${kpis.kvCount + kpis.lvCount} Positionen`),
+    kpi('KV-Schulden abgebaut', chf(kpis.kvAbgebaut), 'kurzfristig getilgt seit Erfassung', kpis.kvAbgebaut > 0 ? 'positive' : ''),
     kpi('Investments', chf(kpis.investWert), `Buchgewinn: ${chf(kpis.investGewinn, { sign: true })}`, kpis.investGewinn >= 0 ? 'positive' : 'negative'),
     kpi('Gevestete Aktien', chf(kpis.vestedWert), `${num(kpis.vestedAnzahl, 0)} Stück (gevestet)`),
     kpi('Mtl. Einkünfte', chf(kpis.einkuenfteMonat), 'inkl. anteiliger Boni'),
+  ));
+
+  // Pivoting-Vorschläge für ausgeglichenes Portfolio
+  const sugs = computeSuggestions(kpis);
+  root.appendChild(el('div', { className: 'card sugg-card' },
+    el('h2', {}, 'Vorschläge zur Balance', el('span', { className: 'small' }, `${sugs.length} Hinweis${sugs.length === 1 ? '' : 'e'}`)),
+    el('div', { className: 'sugg-list' },
+      ...sugs.map(s => el('div', { className: 'sugg sugg-' + s.type },
+        el('div', { className: 'sugg-title' }, s.title),
+        el('div', { className: 'sugg-msg' }, s.msg)
+      ))
+    )
   ));
 
   const grid = el('div', { className: 'two-col' });
@@ -811,9 +824,14 @@ function renderRing(byCat, total) {
 VIEWS.kv = function (root) {
   const data = Store.get('kv');
   const totalSaldo = data.filter(x => x.status !== 'Beglichen').reduce((s, x) => s + (x.saldo || 0), 0);
+  const totalAbgebaut = data.reduce((s, x) => {
+    if (x.ursprung && x.saldo !== undefined && x.ursprung > x.saldo) return s + (x.ursprung - x.saldo);
+    return s;
+  }, 0);
 
   root.appendChild(el('div', { className: 'kpi-grid' },
     kpi('Total offen', chf(totalSaldo), `${data.filter(x => x.status !== 'Beglichen').length} aktive Positionen`),
+    kpi('Bereits abgebaut', chf(totalAbgebaut), 'Ursprung − aktueller Saldo', totalAbgebaut > 0 ? 'positive' : ''),
     kpi('Fällig < 7 T.', chf(data.filter(x => x.status !== 'Beglichen' && daysUntil(x.faellig) !== null && daysUntil(x.faellig) <= 7).reduce((s, x) => s + x.saldo, 0)), 'rote Zone', 'warn'),
     kpi('Jährliche Zinslast', chf(data.filter(x => x.status !== 'Beglichen').reduce((s, x) => s + (x.saldo * (x.zins || 0) / 100), 0))),
   ));
@@ -866,6 +884,7 @@ VIEWS.kv = function (root) {
 function openKvForm(id) {
   const list = Store.get('kv');
   const rec = id ? list.find(x => x.id === id) : { id: null, currency: 'CHF', status: 'Offen', zins: 0, payments: [] };
+  const abgebaut = (rec.ursprung && rec.saldo !== undefined && rec.ursprung > rec.saldo) ? (rec.ursprung - rec.saldo) : 0;
   const form = el('form', { className: 'crud-form' },
     el('h3', {}, id ? `Bearbeiten: ${rec.id}` : 'Neue kurzfristige Verbindlichkeit'),
     formGrid([
@@ -881,6 +900,11 @@ function openKvForm(id) {
       ['status', 'Status *', 'select', true, rec.status || 'Offen', KV_STATUS],
       ['notizen', 'Notizen', 'textarea', false, rec.notizen, null, null, true],
     ]),
+    id ? el('div', { className: 'kv-progress' },
+      el('span', { className: 'small muted' }, 'Bereits abgebaut'),
+      el('span', { className: 'mono kv-progress-val' }, chf(abgebaut)),
+      rec.ursprung ? el('span', { className: 'small muted' }, `(${pct(abgebaut / rec.ursprung * 100, 0)} von ${chf(rec.ursprung)})`) : null
+    ) : null,
     paymentsSection(rec, 'payments', 'Rückzahlungen'),
     crudActions(rec, async (data) => {
       data.payments = rec.payments || [];
@@ -1670,12 +1694,126 @@ function computeKPIs() {
 
   const nettoVermoegen = investWert + vestedWert - schuldenTotal;
 
+  const kvAbgebaut = kv.reduce((s, x) => {
+    if (x.ursprung && x.saldo !== undefined && x.ursprung > x.saldo) return s + (x.ursprung - x.saldo);
+    return s;
+  }, 0);
+
   return {
     nettoVermoegen, cashflow, sparquote, schuldendienstQuote, schuldenTotal,
     investWert, investGewinn, vestedWert, vestedAnzahl,
-    einkuenfteMonat: einMonth,
+    einkuenfteMonat: einMonth, ausgabenMonat: ausMonth,
+    kvAbgebaut,
     kvCount: kvActive.length, lvCount: lvActive.length,
   };
+}
+
+function computeSuggestions(kpis) {
+  const sugs = [];
+  const inv = Store.get('investments') || [];
+  const invActive = inv.filter(i => i.status === 'Im Portfolio');
+
+  // Allokation nach Kategorie
+  const byCat = {};
+  invActive.forEach(i => {
+    const w = currentInvWert(i);
+    byCat[i.kategorie] = (byCat[i.kategorie] || 0) + w;
+  });
+  const totInv = Object.values(byCat).reduce((a, b) => a + b, 0);
+
+  // 1. Hochzinsschulden vor Investitionen tilgen
+  const kvHigh = (Store.get('kv') || []).filter(x => x.status !== 'Beglichen' && (x.zins || 0) >= 5);
+  if (kvHigh.length > 0) {
+    const tot = kvHigh.reduce((s, x) => s + (x.saldo || 0), 0);
+    sugs.push({ type: 'danger', title: 'Hochzinsschulden zuerst tilgen',
+      msg: `${chf(tot)} kurzfristige Schulden mit ≥5 % Zins. Tilgung schlägt fast jedes Investment — vor neuen Käufen abbauen.` });
+  }
+
+  // 2. Notgroschen (3-6 Monate Ausgaben in Cash)
+  const cashPos = invActive.filter(i => i.kategorie === 'Cash').reduce((s, x) => s + currentInvWert(x), 0);
+  if (kpis.ausgabenMonat > 0) {
+    const months = cashPos / kpis.ausgabenMonat;
+    if (months < 3) {
+      sugs.push({ type: 'warn', title: 'Notgroschen aufbauen',
+        msg: `Cash-Reserve ${chf(cashPos)} = ${num(months, 1)} Monate Ausgaben. Ziel: 3–6 Monate (${chf(kpis.ausgabenMonat * 3)}–${chf(kpis.ausgabenMonat * 6)}).` });
+    } else if (months > 12) {
+      sugs.push({ type: 'info', title: 'Zu viel Cash',
+        msg: `${num(months, 0)} Monate Ausgaben in Cash. Überschuss von ~${chf(cashPos - kpis.ausgabenMonat * 6)} in ETF/Anleihen investieren.` });
+    }
+  }
+
+  // 3. Säule 3a
+  const s3aTotal = invActive.filter(i => i.kategorie === 'Säule 3a').reduce((s, x) => s + currentInvWert(x), 0);
+  if (s3aTotal === 0 && kpis.einkuenfteMonat > 4000) {
+    sugs.push({ type: 'warn', title: 'Säule 3a nutzen',
+      msg: 'Keine Säule-3a-Position erfasst. Max-Einzahlung 2026: CHF 7\'258 (mit Pensionskasse). Steuerersparnis je nach Einkommen 1\'500–2\'500 CHF/Jahr.' });
+  }
+
+  // 4. Klumpenrisiko Mitarbeiteraktien
+  if (kpis.vestedWert > 0 && (kpis.investWert + kpis.vestedWert) > 0) {
+    const share = kpis.vestedWert / (kpis.investWert + kpis.vestedWert) * 100;
+    if (share > 30) {
+      sugs.push({ type: 'warn', title: 'Klumpenrisiko Mitarbeiteraktien',
+        msg: `${pct(share, 0)} deines Equity-Vermögens in Mitarbeiteraktien. Schrittweise verkaufen + in ETF diversifizieren.` });
+    }
+  }
+
+  // 5. Allokations-Balance
+  if (totInv > 0) {
+    const aktien = (byCat['Aktie'] || 0) + (byCat['ETF'] || 0) + (byCat['Fonds'] || 0);
+    const anleihen = byCat['Anleihe'] || 0;
+    const krypto = byCat['Krypto'] || 0;
+    const aktienShare = aktien / totInv * 100;
+    const anleihenShare = anleihen / totInv * 100;
+    const kryptoShare = krypto / totInv * 100;
+
+    if (kryptoShare > 10) {
+      sugs.push({ type: 'warn', title: 'Krypto-Anteil hoch',
+        msg: `Krypto ${pct(kryptoShare, 0)} des Portfolios. >10 % gilt als spekulativ — Position auf 5–10 % reduzieren.` });
+    }
+    if (aktienShare > 85 && totInv > 30000) {
+      sugs.push({ type: 'info', title: 'Anleihen beimischen',
+        msg: `Aktien/ETF ${pct(aktienShare, 0)}, Anleihen ${pct(anleihenShare, 0)}. Bei grösserem Portfolio 10–25 % Anleihen für Stabilität.` });
+    }
+    if (anleihenShare === 0 && totInv > 50000) {
+      sugs.push({ type: 'info', title: 'Anleihen-Diversifikation fehlt',
+        msg: 'Keine Anleihen erfasst. Schweizer Staatsanleihen oder Global-Aggregate-ETFs dämpfen Aktien-Volatilität.' });
+    }
+    // Top-1-Position-Konzentration
+    const sorted = invActive.map(i => ({ name: i.bezeichnung, wert: currentInvWert(i) }))
+      .filter(x => x.wert > 0)
+      .sort((a, b) => b.wert - a.wert);
+    if (sorted.length > 0) {
+      const topShare = sorted[0].wert / totInv * 100;
+      if (topShare > 35 && sorted.length >= 3) {
+        sugs.push({ type: 'warn', title: 'Einzelposition zu gross',
+          msg: `"${sorted[0].name}" macht ${pct(topShare, 0)} deines Portfolios aus. Streuung verbessern.` });
+      }
+    }
+  }
+
+  // 6. Schuldendienst-Quote
+  if (kpis.schuldendienstQuote > 33) {
+    sugs.push({ type: 'danger', title: 'Schuldendienst über 33 %',
+      msg: `Zins+Tilgung beanspruchen ${pct(kpis.schuldendienstQuote, 0)} der Einkünfte. Refinanzierung oder Konsolidierung prüfen.` });
+  }
+
+  // 7. Sparquote
+  if (kpis.sparquote < 0) {
+    sugs.push({ type: 'danger', title: 'Negativer Cashflow',
+      msg: `Ausgaben übersteigen Einkünfte um ${chf(-kpis.cashflow)}/Monat. Variable Ausgaben durchgehen.` });
+  } else if (kpis.sparquote >= 0 && kpis.sparquote < 10 && kpis.einkuenfteMonat > 0) {
+    sugs.push({ type: 'warn', title: 'Sparquote unter 10 %',
+      msg: `Aktuell ${pct(kpis.sparquote, 0)}. Ziel: ≥10 %, ideal 20 %+. Fixkosten reduzieren oder Einkünfte erhöhen.` });
+  }
+
+  // 8. Fallback: alles im Lot
+  if (sugs.length === 0) {
+    sugs.push({ type: 'ok', title: 'Portfolio im Gleichgewicht',
+      msg: 'Keine kritischen Ungleichgewichte erkannt. Weiter so — periodisch reviewen.' });
+  }
+
+  return sugs;
 }
 
 function computeUpcomingPayments(days = 30) {

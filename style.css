@@ -615,6 +615,49 @@ dialog::backdrop { background: rgba(10,10,10,0.35); backdrop-filter: blur(2px); 
   .form-grid { grid-template-columns: 1fr; }
 }
 
+/* ============ Suggestions / Pivot-Hinweise ============ */
+.sugg-card h2 .small { color: var(--text-soft); font-size: 0.78rem; font-weight: 400; margin-left: 0.5rem; }
+.sugg-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.sugg {
+  padding: 0.7rem 0.9rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+}
+.sugg-danger { border-left-color: var(--danger); background: #fdf6f6; }
+.sugg-warn   { border-left-color: var(--warning); background: #fdfaf2; }
+.sugg-info   { border-left-color: var(--info);   background: #f4f7fc; }
+.sugg-ok     { border-left-color: var(--success); background: #f5fbf7; }
+.sugg-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-bottom: 0.2rem;
+  color: var(--text);
+}
+.sugg-msg {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ============ KV-Form Progress ============ */
+.kv-progress {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  border-left: 3px solid var(--success);
+}
+.kv-progress-val {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
 /* Collapsible "Erweiterte Felder" */
 details.adv-fields {
   margin-top: 0.5rem;
